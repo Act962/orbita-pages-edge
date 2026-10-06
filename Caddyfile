@@ -1,0 +1,17 @@
+# Portaria de domínios próprios do ÓRBITA Pages — produção.
+{
+	email {$ACME_EMAIL}
+
+	# Só emite certificado para domínio que o app confirma como verificado.
+	on_demand_tls {
+		ask {$APP_ORIGIN}/api/pages/edge/allow
+	}
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+
+	import routes.caddy
+}

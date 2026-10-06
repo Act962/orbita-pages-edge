@@ -1,0 +1,17 @@
+# Teste local contra o app rodando em http://localhost:3000.
+#   docker compose -f docker-compose.local.yml --env-file .env.local up
+#   curl -k --resolve site-teste.example:8443:127.0.0.1 https://site-teste.example:8443/
+services:
+  edge:
+    image: caddy:2.10-alpine
+    ports:
+      - "8080:80"
+      - "8443:443"
+    environment:
+      APP_ORIGIN: ${APP_ORIGIN:-http://host.docker.internal:3000}
+      PAGES_EDGE_SECRET: ${PAGES_EDGE_SECRET:?defina PAGES_EDGE_SECRET}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./Caddyfile.local:/etc/caddy/Caddyfile:ro
+      - ./routes.caddy:/etc/caddy/routes.caddy:ro

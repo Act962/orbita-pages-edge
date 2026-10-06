@@ -1,0 +1,23 @@
+services:
+  edge:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    # EDGE_BIND_IP é o IP dedicado da portaria (o segundo IP do servidor).
+    ports:
+      - "${EDGE_BIND_IP:?defina EDGE_BIND_IP}:80:80"
+      - "${EDGE_BIND_IP}:443:443"
+      - "${EDGE_BIND_IP}:443:443/udp"
+    environment:
+      APP_ORIGIN: ${APP_ORIGIN:?defina APP_ORIGIN}
+      PAGES_EDGE_SECRET: ${PAGES_EDGE_SECRET:?defina PAGES_EDGE_SECRET}
+      ACME_EMAIL: ${ACME_EMAIL:?defina ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./routes.caddy:/etc/caddy/routes.caddy:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  # Guarda os certificados emitidos. Não apagar: reemitir tudo bate no limite do Let's Encrypt.
+  caddy_data:
+  caddy_config:

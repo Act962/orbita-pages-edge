@@ -1,0 +1,44 @@
+# Rotas da portaria, compartilhadas entre produção (Caddyfile) e teste local (Caddyfile.local).
+# Regra geral: nada do app principal é alcançável por um domínio de cliente, exceto o que
+# está listado em @passthrough. Todo o resto vira "site do domínio X" ou 404.
+
+encode zstd gzip
+
+# Nunca confiar nos cabeçalhos internos se vierem do visitante.
+request_header -X-Pages-Edge-Secret
+request_header -X-Pages-Site-Host
+
+# Arquivos estáticos do app e as duas APIs públicas que a página publicada usa:
+# registro de visita e chat do site.
+@passthrough {
+	path /_next/static/* /_next/image* /favicon.ico /api/in-chat/* /api/rpc/pages/registerVisit
+}
+@public_files path_regexp \.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|css|map|txt|xml|webmanifest)$
+
+handle @passthrough {
+	reverse_proxy {$APP_ORIGIN} {
+		header_up Host {upstream_hostport}
+	}
+}
+
+handle @public_files {
+	reverse_proxy {$APP_ORIGIN} {
+		header_up Host {upstream_hostport}
+	}
+}
+
+# Painel, login, demais APIs e a rota interna dos sites: fechados.
+@blocked path /api/* /_next/* /edge-sites /edge-sites/*
+handle @blocked {
+	respond 404
+}
+
+# Qualquer outro caminho é uma página do site daquele domínio. O app só aceita o
+# cabeçalho X-Pages-Site-Host quando ele chega junto com o segredo.
+handle {
+	reverse_proxy {$APP_ORIGIN} {
+		header_up Host {upstream_hostport}
+		header_up X-Pages-Site-Host {host}
+		header_up X-Pages-Edge-Secret {$PAGES_EDGE_SECRET}
+	}
+}

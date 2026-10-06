@@ -1,0 +1,29 @@
+# Teste local: mesmas rotas, com certificado interno (autoassinado) no lugar do Let's Encrypt.
+{
+	on_demand_tls {
+		ask {$APP_ORIGIN}/api/pages/edge/allow
+	}
+}
+
+https:// {
+	tls internal {
+		on_demand
+	}
+
+	import routes.caddy
+}
+
+# Só no teste local: a mesma portaria em HTTP puro, para abrir no navegador sem aviso de
+# certificado (ex.: http://site-teste.localhost:8080).
+http:// {
+	# `next dev` só hidrata a página depois de conectar o canal de recarga (HMR).
+	# Em produção esse canal não existe; por isso a liberação fica só aqui.
+	@dev_hmr path /_next/hmr /_next/webpack-hmr /__nextjs_original-stack-frames
+	handle @dev_hmr {
+		reverse_proxy {$APP_ORIGIN} {
+			header_up Host {upstream_hostport}
+		}
+	}
+
+	import routes.caddy
+}
