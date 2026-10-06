@@ -11,9 +11,9 @@ além do `PAGES_EDGE_SECRET`.
 ## Como uma visita anda
 
 1. O visitante abre `www.cliente.com`; o DNS do cliente aponta para o IP desta portaria.
-2. Na primeira visita de um domínio, o Caddy pergunta ao app
-   `GET /api/pages/edge/allow?domain=…`. Só com resposta 200 (domínio verificado) ele emite
-   o certificado no Let's Encrypt.
+2. O HTTPS do domínio é resolvido antes de chegar às regras: no modo A pelo Coolify, no
+   modo B pelo próprio Caddy, que antes pergunta ao app
+   `GET /api/pages/edge/allow?domain=…` e só emite com resposta 200 (domínio verificado).
 3. O pedido segue para o app com dois cabeçalhos: `X-Pages-Site-Host` (o domínio digitado)
    e `X-Pages-Edge-Secret`.
 4. No app, o `proxy.ts` confere o segredo e reescreve para a rota interna
@@ -34,14 +34,36 @@ Login, painel e o resto da API não são alcançáveis por domínio de cliente. 
 
 ## Subir em produção
 
-Pré-requisitos:
+Há dois modos. O que está em uso é o **A**.
 
-- Um **IP dedicado** para a portaria (o segundo IP do servidor). O proxy do Coolify
-  (Traefik) precisa escutar **só no IP principal**: se ele estiver em `0.0.0.0:80/443`,
-  este container não consegue abrir as mesmas portas no segundo IP.
-- Um registro `A` de `pages.nasaex.com` para esse IP.
-- No app, as variáveis `PAGES_EDGE_SECRET` (igual à daqui), `PAGES_EDGE_HOST=pages.nasaex.com`
-  e `PAGES_EDGE_IP=<o IP dedicado>`.
+### Modo A — dentro do Coolify, no mesmo servidor e IP do app
+
+A portaria roda como mais um serviço do Coolify, atrás do proxy dele. Quem emite o
+certificado de cada domínio é o Coolify; a portaria recebe HTTP puro e só aplica as regras
+de repasse (`Caddyfile.coolify` + `routes.caddy`, empacotados pelo `Dockerfile`).
+
+1. No Coolify, criar um recurso a partir deste repositório, com build por **Dockerfile** e
+   porta exposta **80**.
+2. Variáveis do recurso:
+   - `APP_ORIGIN` — origem do app que desenha os sites, com protocolo e sem barra no fim
+     (a segunda instância, ver "Isolar o tráfego do app principal").
+   - `PAGES_EDGE_SECRET` — o mesmo valor configurado no app.
+3. Checagem de saúde: `GET /edge-healthz` na porta 80.
+4. Criar o registro `A` de `pages.nasaex.com` para o IP do servidor.
+5. No app, definir `PAGES_EDGE_SECRET`, `PAGES_EDGE_HOST=pages.nasaex.com` e
+   `PAGES_EDGE_IP=<IP do servidor>`.
+
+**Para cada domínio de cliente**, depois que ele aparecer como verificado no editor:
+adicionar `https://www.cliente.com` e `https://cliente.com` na lista de domínios deste
+recurso no Coolify. É esse passo que faz o Coolify emitir o certificado e entregar o tráfego
+à portaria. Um domínio que não esteja nessa lista nem chega aqui.
+
+### Modo B — servidor próprio, com certificado automático
+
+Para quando houver uma máquina (ou um IP) só para a portaria. O Caddy assume as portas 80 e
+443 e emite o certificado sozinho na primeira visita de cada domínio verificado, sem passo
+manual por cliente (`Caddyfile` + `docker-compose.yml`). Não funciona no mesmo IP do Coolify,
+porque as duas coisas disputariam as mesmas portas.
 
 ```bash
 cp .env.example .env   # preencher os quatro valores
@@ -59,7 +81,7 @@ A tela **Domínio** do editor mostra os valores prontos:
 |---|---|---|
 | TXT | `_nasa-verify.<domínio>` | código gerado para o site |
 | CNAME | `www` | `pages.nasaex.com` |
-| A | `@` | IP da portaria |
+| A | `@` | IP da portaria (no modo A, o IP do servidor) |
 
 Depois ele clica em **Verificar**. O app confere o TXT e se o domínio aponta para cá.
 

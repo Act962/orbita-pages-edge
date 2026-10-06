@@ -1,0 +1,17 @@
+# Portaria rodando DENTRO do Coolify, atrás do proxy dele (Traefik).
+# Quem emite o certificado de cada domínio é o Coolify; aqui chega HTTP puro, já com o
+# domínio do visitante no cabeçalho Host. Este arquivo só aplica as regras de repasse.
+{
+	auto_https off
+	admin off
+}
+
+:80 {
+	# Checagem de saúde do Coolify (não depende do app estar no ar).
+	@health path /edge-healthz
+	handle @health {
+		respond "ok" 200
+	}
+
+	import routes.caddy
+}
